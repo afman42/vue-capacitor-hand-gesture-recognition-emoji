@@ -1,5 +1,25 @@
-# Vue 3 + Vite
+# Vue 3 + CapacitorJS + Hand Gesture Recognition + Emoji + Android App
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+- Hanya Percobaan, bukan dari repo sebelumnya
+- kodingan masih single file belum di pecah menjadi modular
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+```js
+const gestureMap = {
+  Victory: "✌️",
+  Thumb_Up: "👍",
+  Open_Palm: "✋",
+  Closed_Fist: "✊",
+  Pointing_Up: "☝️",
+  ILoveYou: "🤟",
+};
+```
+
+- testing
+  - cari file apk debug di folder `./android/app/build/outputs/apk/debug/app-debug.apk`
+
+- etc:
+  - Need Android Studio, Java, NodeJS, Simulator or Hardware Device
+  - `git clone "this repo"`
+  - `npm install`
+  - `npm run build`
+  - `npx cap run android`

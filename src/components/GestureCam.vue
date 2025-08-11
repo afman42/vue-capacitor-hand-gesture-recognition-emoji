@@ -2,10 +2,6 @@
 import { ref, nextTick } from "vue";
 import { Camera } from "@capacitor/camera";
 import { GestureRecognizer, FilesetResolver } from "@mediapipe/tasks-vision";
-import data from "emoji-mart-vue-fast/data/all.json";
-import "emoji-mart-vue-fast/css/emoji-mart.css";
-import { EmojiIndex } from "emoji-mart-vue-fast";
-
 // --- STATE MANAGEMENT ---
 // Controls the overall UI state: 'idle', 'loading', 'running'
 const appState = ref("idle");
@@ -14,13 +10,10 @@ const errorMessage = ref("");
 
 const videoRef = ref(null);
 const recognizedGesture = ref("None");
-const selectedEmoji = ref("🙂");
+const selectedEmoji = ref("❓");
 
 let gestureRecognizer;
 let lastVideoTime = -1;
-
-// --- EMOJI PICKER ---
-const emojiIndex = new EmojiIndex(data);
 
 // --- CORE FUNCTIONS ---
 const initializeAndStart = async () => {
@@ -80,12 +73,19 @@ const initializeAndStart = async () => {
 };
 
 const checkAndRequestCameraPermission = async () => {
-  let permission = await Camera.checkPermissions();
-  if (permission.camera === "denied") return false;
-  if (permission.camera === "prompt") {
-    permission = await Camera.requestPermissions();
+  let permissions = await Camera.requestPermissions({
+    permissions: ["camera", "photos"],
+  });
+  if (permissions.camera === "denied" || permissions.photos === "denied") {
+    errorMessage.value = "Camera and Storage permissions are required.";
+    console.error("Permissions not granted:", permissions);
+    return false;
   }
-  return permission.camera === "granted";
+  if (permissions.camera === "prompt" || permissions.photos === "prompt") {
+    permissions = await Camera.requestPermissions();
+  }
+
+  return true;
 };
 
 const predictWebcam = () => {
@@ -104,11 +104,18 @@ const predictWebcam = () => {
     if (results.gestures.length > 0) {
       const gesture = results.gestures[0][0];
       recognizedGesture.value = `${gesture.categoryName} (${(gesture.score * 100).toFixed(1)}%)`;
-      if (gesture.categoryName === "Pointing_Up") {
-        showPicker.value = true;
-      }
+      const gestureMap = {
+        Victory: "✌️",
+        Thumb_Up: "👍",
+        Open_Palm: "✋",
+        Closed_Fist: "✊",
+        Pointing_Up: "☝️",
+        ILoveYou: "🤟",
+      };
+      selectedEmoji.value = gestureMap[gesture.categoryName];
     } else {
       recognizedGesture.value = "None";
+      selectedEmoji.value = "❓";
     }
   }
 
@@ -142,6 +149,7 @@ const predictWebcam = () => {
 
       <div class="controls">
         <p><strong>Gesture:</strong> {{ recognizedGesture }}</p>
+      </div>
     </div>
   </div>
 </template>
@@ -246,7 +254,6 @@ const predictWebcam = () => {
 }
 
 .controls p {
-  margin: 0 0 1rem 0;
   font-size: 1.1rem;
 }
 

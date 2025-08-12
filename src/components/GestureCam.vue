@@ -1,9 +1,12 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { useGestureRecognizer } from "../composables/useGestureRecognizer";
 import { Preferences } from "@capacitor/preferences";
+import { App } from "@capacitor/app";
 
 const videoRef = ref(null);
+const appStateChange = ref(false);
+let listener;
 
 // Use our custom composable to get all the logic and state
 const {
@@ -14,7 +17,7 @@ const {
   selectedEmoji,
   isRunning,
   start,
-  // stop // We can expose a stop function if we add a button for it
+  stop,
 } = useGestureRecognizer();
 
 // The overall app state is now a computed property based on the composable's state
@@ -24,12 +27,16 @@ const appState = computed(() => {
   return "idle";
 });
 
-// A single function to kick things off
 const handleStartSession = () => {
   start(videoRef);
 };
 
+const handleStopSession = () => {
+  stop(videoRef);
+};
+
 onMounted(async () => {
+  await nextTick();
   try {
     const { value } = await Preferences.get({ key: "sessionActive" });
     if (value === "true") handleStartSession();
@@ -37,6 +44,14 @@ onMounted(async () => {
     console.error("Could not read preferences", e);
     alert("Could not read preferences", e);
   }
+  listener = await App.addListener("appStateChange", ({ isActive }) => {
+    console.log("App when is Active", isActive);
+    if (!isActive) appStateChange.value = true;
+  });
+});
+onUnmounted(() => {
+  listener?.remove();
+  appStateChange.value = false;
 });
 </script>
 
@@ -65,13 +80,35 @@ onMounted(async () => {
       </div>
       <div class="controls">
         <p><strong>Gesture:</strong> {{ recognizedGesture }}</p>
+        <button
+          type="button"
+          v-show="appStateChange"
+          class="stop-button"
+          @click="handleStopSession"
+        >
+          Stop Session
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <style>
-/* Styles remain the same */
+.stop-button {
+  background-color: #ba5e36;
+  color: white;
+  border: none;
+  padding: 15px 30px;
+  font-size: 0.7rem;
+  border-radius: 50px;
+  cursor: pointer;
+  margin-top: 20px;
+  transition: background-color 0.3s;
+}
+.stop-button:hover {
+  background-color: #db9576;
+  color: black;
+}
 .idle-container,
 .loading-container {
   display: flex;
@@ -155,6 +192,9 @@ onMounted(async () => {
 }
 .controls p {
   font-size: 1.1rem;
+}
+.controls button {
+  margin: 0 0 1rem 0;
 }
 .error {
   padding: 20px;

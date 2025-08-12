@@ -18,7 +18,7 @@ const gestureMap = {
   - cari file apk debug di folder `./android/app/build/outputs/apk/debug/app-debug.apk`
 
 - etc:
-  - Need Android Studio, Java, NodeJS, Simulator or Hardware Device
+  - Need Android Studio, Java, NodeJS, Simulator or Hardware Device, And Internet Kuota or WIFI
   - `git clone "this repo"`
   - `npm install`
   - `npm run build`

@@ -1,7 +1,7 @@
 # Vue 3 + CapacitorJS + Hand Gesture Recognition + Emoji + Android App
 
 - Hanya Percobaan, bukan dari repo sebelumnya
-- kodingan masih single file belum di pecah menjadi modular
+- kodingan sudah modular mungkin
 
 ```js
 const gestureMap = {

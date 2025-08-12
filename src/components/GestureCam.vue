@@ -1,126 +1,43 @@
 <script setup>
-import { ref, nextTick } from "vue";
-import { Camera } from "@capacitor/camera";
-import { GestureRecognizer, FilesetResolver } from "@mediapipe/tasks-vision";
-// --- STATE MANAGEMENT ---
-// Controls the overall UI state: 'idle', 'loading', 'running'
-const appState = ref("idle");
-const loadingMessage = ref("");
-const errorMessage = ref("");
+import { ref, computed, onMounted } from "vue";
+import { useGestureRecognizer } from "../composables/useGestureRecognizer";
+import { Preferences } from "@capacitor/preferences";
 
 const videoRef = ref(null);
-const recognizedGesture = ref("None");
-const selectedEmoji = ref("❓");
 
-let gestureRecognizer;
-let lastVideoTime = -1;
+// Use our custom composable to get all the logic and state
+const {
+  isLoading,
+  loadingMessage,
+  errorMessage,
+  recognizedGesture,
+  selectedEmoji,
+  isRunning,
+  start,
+  // stop // We can expose a stop function if we add a button for it
+} = useGestureRecognizer();
 
-// --- CORE FUNCTIONS ---
-const initializeAndStart = async () => {
-  // Prevent multiple initializations
-  if (appState.value !== "idle") return;
+// The overall app state is now a computed property based on the composable's state
+const appState = computed(() => {
+  if (isLoading.value) return "loading";
+  if (isRunning.value) return "running";
+  return "idle";
+});
 
-  appState.value = "loading";
-  errorMessage.value = "";
+// A single function to kick things off
+const handleStartSession = () => {
+  start(videoRef);
+};
 
+onMounted(async () => {
   try {
-    // 1. Initialize Gesture Recognizer (The heaviest part)
-    loadingMessage.value = "Initializing AI Model...";
-    const vision = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm",
-    );
-    gestureRecognizer = await GestureRecognizer.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: `/models/gesture_recognizer.task`,
-        delegate: "CPU",
-      },
-      runningMode: "VIDEO",
-      numHands: 1,
-    });
-
-    // 2. Get Camera Permissions
-    loadingMessage.value = "Requesting Camera Access...";
-    const hasPermission = await checkAndRequestCameraPermission();
-    if (!hasPermission) {
-      throw new Error("Camera permission is required.");
-    }
-
-    // --- THIS IS THE CORRECTED LOGIC ---
-
-    // 3. Switch to the running state FIRST to render the <video> element
-    appState.value = "running";
-
-    // 4. Wait for Vue to update the DOM
-    await nextTick();
-
-    // 5. Now that the <video> exists, get the stream and attach it
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-
-    // Check if videoRef is valid before using it
-    if (videoRef.value) {
-      videoRef.value.srcObject = stream;
-      videoRef.value.addEventListener("loadedmetadata", () => {
-        predictWebcam();
-      });
-    } else {
-      throw new Error("Video element could not be found.");
-    }
+    const { value } = await Preferences.get({ key: "sessionActive" });
+    if (value === "true") handleStartSession();
   } catch (e) {
-    errorMessage.value = e.message;
-    appState.value = "idle"; // Reset state on error
-    console.error(e);
+    console.error("Could not read preferences", e);
+    alert("Could not read preferences", e);
   }
-};
-
-const checkAndRequestCameraPermission = async () => {
-  let permissions = await Camera.requestPermissions({
-    permissions: ["camera", "photos"],
-  });
-  if (permissions.camera === "denied" || permissions.photos === "denied") {
-    errorMessage.value = "Camera and Storage permissions are required.";
-    console.error("Permissions not granted:", permissions);
-    return false;
-  }
-  if (permissions.camera === "prompt" || permissions.photos === "prompt") {
-    permissions = await Camera.requestPermissions();
-  }
-
-  return true;
-};
-
-const predictWebcam = () => {
-  // Only run if the app is in the 'running' state
-  if (appState.value !== "running" || !gestureRecognizer || !videoRef.value)
-    return;
-
-  const currentTime = videoRef.value.currentTime;
-  if (currentTime > lastVideoTime) {
-    lastVideoTime = currentTime;
-    const results = gestureRecognizer.recognizeForVideo(
-      videoRef.value,
-      Date.now(),
-    );
-
-    if (results.gestures.length > 0) {
-      const gesture = results.gestures[0][0];
-      recognizedGesture.value = `${gesture.categoryName} (${(gesture.score * 100).toFixed(1)}%)`;
-      const gestureMap = {
-        Victory: "✌️",
-        Thumb_Up: "👍",
-        Open_Palm: "✋",
-        Closed_Fist: "✊",
-        Pointing_Up: "☝️",
-        ILoveYou: "🤟",
-      };
-      selectedEmoji.value = gestureMap[gesture.categoryName];
-    } else {
-      recognizedGesture.value = "None";
-      selectedEmoji.value = "❓";
-    }
-  }
-
-  requestAnimationFrame(predictWebcam);
-};
+});
 </script>
 
 <template>
@@ -130,7 +47,7 @@ const predictWebcam = () => {
       <p>
         Press the button to start the camera and gesture recognition session.
       </p>
-      <button class="start-button" @click="initializeAndStart">
+      <button class="start-button" @click="handleStartSession">
         🚀 Start Session
       </button>
       <div v-if="errorMessage" class="error">{{ errorMessage }}</div>
@@ -141,12 +58,11 @@ const predictWebcam = () => {
       <p>{{ loadingMessage }}</p>
     </div>
 
-    <div v-if="appState === 'running'" class="running-container">
+    <div v-show="appState === 'running'" class="running-container">
       <div class="display-area">
         <div class="emoji-display">{{ selectedEmoji }}</div>
         <video ref="videoRef" class="video-feed" autoplay playsinline></video>
       </div>
-
       <div class="controls">
         <p><strong>Gesture:</strong> {{ recognizedGesture }}</p>
       </div>
@@ -155,7 +71,7 @@ const predictWebcam = () => {
 </template>
 
 <style>
-/* Add new styles for idle and loading states */
+/* Styles remain the same */
 .idle-container,
 .loading-container {
   display: flex;
@@ -166,7 +82,6 @@ const predictWebcam = () => {
   padding: 40px 20px;
   height: 80vh;
 }
-
 .start-button {
   background-color: #5c6bc0;
   color: white;
@@ -181,7 +96,6 @@ const predictWebcam = () => {
 .start-button:hover {
   background-color: #3f51b5;
 }
-
 .spinner {
   width: 50px;
   height: 50px;
@@ -191,7 +105,6 @@ const predictWebcam = () => {
   animation: spin 1s linear infinite;
   margin-bottom: 20px;
 }
-
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -204,7 +117,6 @@ const predictWebcam = () => {
   background-color: #242424;
   color: #fff;
 }
-
 .container {
   position: relative;
   width: 100%;
@@ -212,13 +124,6 @@ const predictWebcam = () => {
   margin: auto;
   overflow: hidden;
 }
-
-.loading {
-  text-align: center;
-  padding: 40px;
-  font-size: 1.2rem;
-}
-
 .display-area {
   position: relative;
   width: 100%;
@@ -227,15 +132,12 @@ const predictWebcam = () => {
   border-radius: 12px;
   overflow: hidden;
 }
-
 .video-feed {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* Flip the video to make it a mirror image */
   transform: scaleX(-1);
 }
-
 .emoji-display {
   position: absolute;
   top: 20px;
@@ -244,7 +146,6 @@ const predictWebcam = () => {
   font-size: 60px;
   text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
 }
-
 .controls {
   padding: 1rem;
   text-align: center;
@@ -252,17 +153,15 @@ const predictWebcam = () => {
   border-radius: 12px;
   margin-top: 1rem;
 }
-
 .controls p {
   font-size: 1.1rem;
 }
-
 .error {
   padding: 20px;
   background-color: #ff3b30;
   color: white;
   text-align: center;
   border-radius: 12px;
-  margin-bottom: 1rem;
+  margin-top: 1rem;
 }
 </style>
